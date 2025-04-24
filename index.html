@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Lunara JSON Store</title>
+  <style>
+    body { background-color: #0e1629; color: white; font-family: sans-serif; }
+    .upload-box, .card { background: #1f2d45; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; margin: 20px auto; }
+    input, button { margin-top: 10px; }
+    .card pre { white-space: pre-wrap; color: #0f0; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <div class="upload-box">
+    <h2>Upload JSON</h2>
+    <input type="file" id="fileInput" accept=".json"><br>
+    <input type="text" id="author" placeholder="Your name (optional)" /><br>
+    <button onclick="uploadJSON()">Upload</button>
+  </div>
+
+  <div id="jsonList"></div>
+
+  <!-- Firebase SDKs -->
+  <script type="module">
+    // Firebase import
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Replace with your Firebase config ↓
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_MSG_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Upload JSON
+    window.uploadJSON = async function () {
+      const fileInput = document.getElementById('fileInput');
+      const author = document.getElementById('author').value || "Anonymous";
+      const file = fileInput.files[0];
+
+      if (!file) return alert("Please select a JSON file");
+
+      const reader = new FileReader();
+      reader.onload = async function (e) {
+        const content = e.target.result;
+
+        await addDoc(collection(db, "jsonFiles"), {
+          name: file.name,
+          author,
+          content,
+          timestamp: new Date()
+        });
+
+        alert("Uploaded!");
+        fileInput.value = "";
+        document.getElementById('author').value = "";
+        fetchAndDisplayJSONs();
+      };
+      reader.readAsText(file);
+    };
+
+    // Display cards
+    async function fetchAndDisplayJSONs() {
+      const list = document.getElementById('jsonList');
+      list.innerHTML = "";
+
+      const querySnapshot = await getDocs(collection(db, "jsonFiles"));
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h3>${data.name}</h3>
+          <p>Made by ${data.author}</p>
+          <pre>${data.content.slice(0, 200)}...</pre>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    fetchAndDisplayJSONs();
+  </script>
+</body>
+</html>
