@@ -1,90 +1,120 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Lunara JSON Store</title>
-  <style>
-    body { background-color: #0e1629; color: white; font-family: sans-serif; }
-    .upload-box, .card { background: #1f2d45; padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; margin: 20px auto; }
-    input, button { margin-top: 10px; }
-    .card pre { white-space: pre-wrap; color: #0f0; font-size: 0.8rem; }
-  </style>
+  <meta charset="UTF-8">
+  <title>Lunara JSON Library</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="upload-box">
-    <h2>Upload JSON</h2>
-    <input type="file" id="fileInput" accept=".json"><br>
-    <input type="text" id="author" placeholder="Your name (optional)" /><br>
-    <button onclick="uploadJSON()">Upload</button>
-  </div>
+  <h1>Lunara JSON Library</h1>
 
-  <div id="jsonList"></div>
+  <label>
+    JSON File:
+    <input type="file" id="fileInput" accept=".json">
+  </label><br>
 
-  <!-- Firebase SDKs -->
+  <label>
+    Custom Name:
+    <input type="text" id="customName" placeholder="MyItem.json">
+  </label><br>
+
+  <label>
+    Your Author Name:
+    <input type="text" id="authorName" placeholder="Evan">
+  </label><br>
+
+  <label>
+    <input type="checkbox" id="previewable">
+    Allow Preview
+  </label><br>
+
+  <button onclick="uploadFile()">Upload JSON</button>
+
+  <hr>
+  <h2>Public Files</h2>
+  <ul id="fileList">Loading...</ul>
+
+  <button onclick="toggleDarkMode()">Toggle Light/Dark Mode</button>
+
+  <!-- Firebase & Script -->
   <script type="module">
-    // Firebase import
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getStorage, ref, uploadBytes, listAll, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-    // Replace with your Firebase config ↓
     const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT_ID.appspot.com",
-      messagingSenderId: "YOUR_MSG_ID",
-      appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyDlF7iwtlgfBpSwdPePoeFNm-MT0lrhItA",
+      authDomain: "lunarajsonstore.firebaseapp.com",
+      projectId: "lunarajsonstore",
+      storageBucket: "lunarajsonstore.appspot.com",
+      messagingSenderId: "321249462989",
+      appId: "1:321249462989:web:29ae0ef77166c9a0077784",
+      measurementId: "G-FEYVHJZGZQ"
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    const storage = getStorage(app);
 
-    // Upload JSON
-    window.uploadJSON = async function () {
-      const fileInput = document.getElementById('fileInput');
-      const author = document.getElementById('author').value || "Anonymous";
-      const file = fileInput.files[0];
+    async function uploadFile() {
+      const file = document.getElementById("fileInput").files[0];
+      const name = document.getElementById("customName").value.trim();
+      const author = document.getElementById("authorName").value.trim();
+      const previewable = document.getElementById("previewable").checked;
 
-      if (!file) return alert("Please select a JSON file");
+      if (!file || !name || !author) return alert("Please fill all fields and select a file!");
 
-      const reader = new FileReader();
-      reader.onload = async function (e) {
-        const content = e.target.result;
-
-        await addDoc(collection(db, "jsonFiles"), {
-          name: file.name,
+      const meta = {
+        customMetadata: {
           author,
-          content,
-          timestamp: new Date()
-        });
-
-        alert("Uploaded!");
-        fileInput.value = "";
-        document.getElementById('author').value = "";
-        fetchAndDisplayJSONs();
+          previewable: previewable.toString()
+        }
       };
-      reader.readAsText(file);
-    };
 
-    // Display cards
-    async function fetchAndDisplayJSONs() {
-      const list = document.getElementById('jsonList');
-      list.innerHTML = "";
-
-      const querySnapshot = await getDocs(collection(db, "jsonFiles"));
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const card = document.createElement("div");
-        card.className = "card";
-        card.innerHTML = `
-          <h3>${data.name}</h3>
-          <p>Made by ${data.author}</p>
-          <pre>${data.content.slice(0, 200)}...</pre>
-        `;
-        list.appendChild(card);
-      });
+      const storageRef = ref(storage, 'jsons/' + name);
+      await uploadBytes(storageRef, file, meta);
+      alert("Uploaded successfully!");
+      listFiles();
     }
 
-    fetchAndDisplayJSONs();
+    async function listFiles() {
+      const listRef = ref(storage, 'jsons/');
+      const res = await listAll(listRef);
+      const fileList = document.getElementById("fileList");
+      fileList.innerHTML = "";
+
+      if (res.items.length === 0) {
+        fileList.innerHTML = "<li>No files yet.</li>";
+        return;
+      }
+
+      for (const item of res.items) {
+        const url = await getDownloadURL(item);
+        const metadata = await item.getMetadata();
+
+        const name = item.name;
+        const author = metadata.customMetadata?.author || "Unknown";
+        const previewable = metadata.customMetadata?.previewable === "true";
+
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <strong>${name}</strong> by <em>${author}</em><br>
+          <a href="${url}" target="_blank">Download</a>
+          ${previewable ? `<button onclick="previewJSON('${url}')">Preview</button>` : ""}
+        `;
+        fileList.appendChild(li);
+      }
+    }
+
+    async function previewJSON(url) {
+      const res = await fetch(url);
+      const json = await res.json();
+      alert(JSON.stringify(json, null, 2));
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark");
+    }
+
+    listFiles();
   </script>
 </body>
 </html>
