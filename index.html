@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>JSON Library</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    #cooldownMessage {
+      margin-top: 10px;
+      color: red;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body class="dark">
   <div class="container">
@@ -39,7 +46,8 @@
         Allow Preview
       </label>
 
-      <button onclick="uploadFile()">Upload JSON</button>
+      <button id="uploadBtn" onclick="uploadFile()">Upload JSON</button>
+      <div id="cooldownMessage"></div>
       <button onclick="toggleDarkMode()">Toggle Light/Dark Mode</button>
     </div>
 
@@ -50,18 +58,61 @@
   </div>
 
   <script>
+    const cooldownKey = "uploadCooldown";
+    const cooldownDuration = 5 * 60 * 1000; // 5 minutes in ms
+    const uploadBtn = document.getElementById("uploadBtn");
+    const cooldownMessage = document.getElementById("cooldownMessage");
+
+    function setCookie(name, value, minutes) {
+      const expires = new Date(Date.now() + minutes * 60 * 1000).toUTCString();
+      document.cookie = `${name}=${value}; expires=${expires}; path=/`;
+    }
+
+    function getCookie(name) {
+      const value = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+      return value ? value.pop() : '';
+    }
+
+    function startCooldown() {
+      const endTime = Date.now() + cooldownDuration;
+      setCookie(cooldownKey, endTime, 5);
+      updateCooldownDisplay(endTime);
+    }
+
+    function updateCooldownDisplay(endTime) {
+      uploadBtn.disabled = true;
+
+      const interval = setInterval(() => {
+        const remaining = endTime - Date.now();
+        if (remaining <= 0) {
+          clearInterval(interval);
+          uploadBtn.disabled = false;
+          cooldownMessage.textContent = '';
+          setCookie(cooldownKey, '', -1);
+        } else {
+          const minutes = Math.floor(remaining / 60000);
+          const seconds = Math.floor((remaining % 60000) / 1000);
+          cooldownMessage.textContent = `You can upload again in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+      }, 1000);
+    }
+
     async function uploadFile() {
       const file = document.getElementById("fileInput").files[0];
       const baseName = document.getElementById("customName").value.trim();
       const author = document.getElementById("authorName").value.trim();
       const previewable = document.getElementById("previewable").checked;
-      const jsonFormat = document.getElementById("jsonFormat").value;  // Get selected format
+      const jsonFormat = document.getElementById("jsonFormat").value;
+
+      const cooldown = getCookie(cooldownKey);
+      if (cooldown && Date.now() < parseInt(cooldown)) {
+        return alert("Please wait for the cooldown to finish before uploading again.");
+      }
 
       if (!file || !baseName || !author) {
         return alert("Please fill all fields and select a file!");
       }
 
-      // Construct the final filename with selected format
       const finalName = `${baseName} - ${author} - ${jsonFormat}.json`;
 
       const formData = new FormData();
@@ -78,6 +129,7 @@
 
         const result = await response.text();
         alert(result);
+        startCooldown();
         loadPublicFiles();
       } catch (error) {
         console.error("Error uploading file:", error);
@@ -138,7 +190,14 @@
       document.body.classList.toggle("dark");
     }
 
-    window.onload = loadPublicFiles;
+    window.onload = () => {
+      loadPublicFiles();
+
+      const cooldown = getCookie(cooldownKey);
+      if (cooldown && Date.now() < parseInt(cooldown)) {
+        updateCooldownDisplay(parseInt(cooldown));
+      }
+    };
   </script>
 </body>
 </html>
