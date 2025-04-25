@@ -26,6 +26,14 @@
         <input type="text" id="authorName" placeholder="Evan" />
       </label>
 
+      <label>
+        JSON Format:
+        <select id="jsonFormat">
+          <option value="Lunara">Lunara JSON</option>
+          <option value="XMod">XMod JSON</option>
+        </select>
+      </label>
+
       <label class="checkbox-group">
         <input type="checkbox" id="previewable" />
         Allow Preview
@@ -47,12 +55,14 @@
       const baseName = document.getElementById("customName").value.trim();
       const author = document.getElementById("authorName").value.trim();
       const previewable = document.getElementById("previewable").checked;
+      const jsonFormat = document.getElementById("jsonFormat").value;  // Get selected format
 
       if (!file || !baseName || !author) {
         return alert("Please fill all fields and select a file!");
       }
 
-      const finalName = `${baseName} - ${author}.json`;
+      // Construct the final filename with selected format
+      const finalName = `${baseName} - ${author} - ${jsonFormat}.json`;
 
       const formData = new FormData();
       formData.append("file", file);
